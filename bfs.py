@@ -3,10 +3,12 @@ from typing import Iterable
 from pygraphblas import Matrix, types
 
 
-def chosen_vertices(indices: Iterable[int], weights: Iterable[int] =None):
+def chosen_vertices(indices: Iterable[int], weights: Iterable[int] = None, size: int = None):
     weights = [1 for _ in indices] if weights is None else tuple(weights)
     indices = tuple(indices)  # copy and make a tuple just in case
-    return Matrix.from_lists(indices, indices, weights)
+    if indices:
+        return Matrix.from_lists(indices, indices, weights, nrows=size, ncols=size)
+    return Matrix.sparse(types.UINT8, nrows=size, ncols=size)  # empty matrix
 
 
 def check_matrix_correctness(A: Matrix):
@@ -29,20 +31,19 @@ def bfs(A: Matrix, indices: Iterable[int]):
     levels is a dict: vertex -> distance from starting vertices.
     """
     check_matrix_correctness(A)
-    A_t = A.transpose()
-    Identity = Matrix.identity(types.UINT8, nrows=A_t.nrows)
+    Identity = Matrix.identity(types.UINT8, nrows=A.nrows)
     indices = tuple(indices)
-    O = chosen_vertices(indices)
+    O = chosen_vertices(indices, size=A.nrows)
     origins = {i: i for i in indices}
     levels = {i: 0 for i in indices}
     Cumulative = O
     NotReached = Identity - O
     level = 1
-    while Cumulative.max() and NotReached:
-        Cumulative = Cumulative @ A_t
+    while Cumulative.max() > 0 and NotReached:
+        Cumulative = Cumulative @ A
         Current = Cumulative @ NotReached
         _, current_cols, current_weights = Current.to_lists()
-        NotReached -= chosen_vertices(current_cols, weights=current_weights)
+        NotReached -= chosen_vertices(current_cols, weights=current_weights, size=A.nrows)
         NotReached = NotReached.nonzero()
         for origin, vertex, weight in zip(*Current.to_lists()):
             if weight:
